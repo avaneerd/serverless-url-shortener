@@ -133,6 +133,6 @@ public static async Task<HttpResponseMessage> Run(HttpRequestMessage req, NextId
 
         logger.Info($"Retrying, attempt {attempt + 1}");
 
-        return Run(req, keyTable, tableOut, log, attempt++);
+        return await Run(req, keyTable, tableOut, log, attempt++);
     }
 }
