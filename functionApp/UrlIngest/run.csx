@@ -33,7 +33,7 @@ public static async Task<HttpResponseMessage> Run(HttpRequestMessage req, NextId
     return await CreateShortUrl(req, keyTable, tableOut, log, 0);
 }
 
-private static async Task<HttpResponseMessage> CreateShortUrl(HttpRequestMessage req, NextId keyTable, CloudTable tableOut, TraceWriter log, int attempt)
+static async Task<HttpResponseMessage> CreateShortUrl(HttpRequestMessage req, NextId keyTable, CloudTable tableOut, TraceWriter log, int attempt)
 {
     log.Info($"C# manually triggered function called with req: {req}");
 
