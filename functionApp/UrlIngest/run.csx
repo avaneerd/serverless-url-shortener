@@ -28,7 +28,12 @@ public static string Encode(int i)
 
 public static string[] UTM_MEDIUMS=new [] {"twitter", "facebook", "linkedin", "googleplus"};
 
-public static async Task<HttpResponseMessage> Run(HttpRequestMessage req, NextId keyTable, CloudTable tableOut, TraceWriter log, int attempt = 0)
+public static async Task<HttpResponseMessage> Run(HttpRequestMessage req, NextId keyTable, CloudTable tableOut, TraceWriter log) 
+{
+    return await Run(req, keyTable, tableOut, log, 0);
+}
+
+private static async Task<HttpResponseMessage> Run(HttpRequestMessage req, NextId keyTable, CloudTable tableOut, TraceWriter log, int attempt = 0)
 {
     log.Info($"C# manually triggered function called with req: {req}");
 
