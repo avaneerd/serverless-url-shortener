@@ -129,9 +129,9 @@ public static async Task<HttpResponseMessage> Run(HttpRequestMessage req, NextId
         if (attempt >= 2)
             throw; // stop and throw after 3 attempts
 
-        logger.Error("Error occured when trying to create short URL: " + ex.ToString());
+        log.Error("Error occured when trying to create short URL: " + ex.ToString());
 
-        logger.Info($"Retrying, attempt {attempt + 1}");
+        log.Info($"Retrying, attempt {attempt + 1}");
 
         return await Run(req, keyTable, tableOut, log, attempt++);
     }
