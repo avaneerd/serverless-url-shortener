@@ -13,21 +13,22 @@ public static readonly int Base = Alphabet.Length;
 
 public static string Encode(int i)
 {
-            if (i == 0)
-                            return Alphabet[0].ToString();
-            var s = string.Empty;
-            while (i > 0)
-            {
-                            s += Alphabet[i % Base];
-                            i = i / Base;
-            }
+    if (i == 0)
+        return Alphabet[0].ToString();
 
-            return string.Join(string.Empty, s.Reverse());
+    var s = string.Empty;
+    while (i > 0)
+    {
+        s += Alphabet[i % Base];
+        i = i / Base;
+    }
+
+    return string.Join(string.Empty, s.Reverse());
 }
 
 public static string[] UTM_MEDIUMS=new [] {"twitter", "facebook", "linkedin", "googleplus"};
 
-public static async Task<HttpResponseMessage> Run(HttpRequestMessage req, NextId keyTable, CloudTable tableOut, TraceWriter log)
+public static async Task<HttpResponseMessage> Run(HttpRequestMessage req, NextId keyTable, CloudTable tableOut, TraceWriter log, int attempt = 0)
 {
     log.Info($"C# manually triggered function called with req: {req}");
 
@@ -74,52 +75,64 @@ public static async Task<HttpResponseMessage> Run(HttpRequestMessage req, NextId
         url = $"{url}?utm_source={UTM_SOURCE}";
     }
 
-    if (tagMediums) 
-    {
-        foreach(var medium in UTM_MEDIUMS)
+    try {
+        if (tagMediums) 
         {
-            var mediumUrl = $"{url}&utm_medium={medium}";
+            foreach(var medium in UTM_MEDIUMS)
+            {
+                var mediumUrl = $"{url}&utm_medium={medium}";
+                var shortUrl = Encode(keyTable.Id++);
+                log.Info($"Short URL for {mediumUrl} is {shortUrl}");
+                var newUrl = new ShortUrl 
+                {
+                    PartitionKey = $"{shortUrl.First()}",
+                    RowKey = $"{shortUrl}",
+                    Medium = medium,
+                    Url = mediumUrl
+                };
+                var multiAdd = TableOperation.Insert(newUrl);
+                await tableOut.ExecuteAsync(multiAdd); 
+                result.Add(new Result 
+                { 
+                    ShortUrl = $"{SHORTENER_URL}{newUrl.RowKey}",
+                    LongUrl = WebUtility.UrlDecode(newUrl.Url)
+                });
+            }
+        }
+        else 
+        {
             var shortUrl = Encode(keyTable.Id++);
-            log.Info($"Short URL for {mediumUrl} is {shortUrl}");
+            log.Info($"Short URL for {url} is {shortUrl}");
             var newUrl = new ShortUrl 
             {
                 PartitionKey = $"{shortUrl.First()}",
                 RowKey = $"{shortUrl}",
-                Medium = medium,
-                Url = mediumUrl
+                Url = url
             };
-            var multiAdd = TableOperation.Insert(newUrl);
-            await tableOut.ExecuteAsync(multiAdd); 
+            var singleAdd = TableOperation.Insert(newUrl);
+            await tableOut.ExecuteAsync(singleAdd);
             result.Add(new Result 
-            { 
+            {
                 ShortUrl = $"{SHORTENER_URL}{newUrl.RowKey}",
                 LongUrl = WebUtility.UrlDecode(newUrl.Url)
-            });
+            }); 
         }
+
+        var operation = TableOperation.Replace(keyTable);
+        await tableOut.ExecuteAsync(operation);
+
+        log.Info($"Done.");
+        return req.CreateResponse(HttpStatusCode.OK, result);
     }
-    else 
+    catch (Exception ex) 
     {
-        var shortUrl = Encode(keyTable.Id++);
-        log.Info($"Short URL for {url} is {shortUrl}");
-        var newUrl = new ShortUrl 
-        {
-            PartitionKey = $"{shortUrl.First()}",
-            RowKey = $"{shortUrl}",
-            Url = url
-        };
-        var singleAdd = TableOperation.Insert(newUrl);
-        await tableOut.ExecuteAsync(singleAdd);
-        result.Add(new Result 
-        {
-            ShortUrl = $"{SHORTENER_URL}{newUrl.RowKey}",
-            LongUrl = WebUtility.UrlDecode(newUrl.Url)
-        }); 
+        if (attempt >= 2)
+            throw; // stop and throw after 3 attempts
+
+        logger.Error("Error occured when trying to create short URL: " + ex.ToString());
+
+        logger.Info($"Retrying, attempt {attempt + 1}");
+
+        return Run(req, keyTable, tableOut, log, attempt++);
     }
-
-    var operation = TableOperation.Replace(keyTable);
-    await tableOut.ExecuteAsync(operation);
-
-    log.Info($"Done.");
-    return req.CreateResponse(HttpStatusCode.OK, result);
-    
 }
